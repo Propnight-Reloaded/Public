@@ -1,6 +1,7 @@
 {
-  "serial": 1,
+  "serial": 2,
   "issued_at": "2026-11-23T00:00:00Z",
+  "valid_until": "2027-02-12T19:00:00Z",
   "services": {
     "shipgate": "https://shipgate.zekyro.dev",
     "accounts": "https://accounts.zekyro.dev",

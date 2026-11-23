@@ -1,0 +1,46 @@
+name: Renew validity
+# Prolonge validity.json chaque semaine tant que les domaines de renewal.json sont toujours les nôtres (RDAP).
+# En cas d'échec (domaine expiré, réenregistré, RDAP injoignable), le workflow échoue et GitHub prévient par email :
+# les clients passent hors ligne à l'échéance de la dernière validité, sans jamais contacter un domaine perdu.
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [discovery.json, discovery.json.minisig, renewal.json, keys.json]
+concurrency: renew
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tools/discovery.mjs renew
+        env:
+          DISCOVERY_RENEWAL_KEY: ${{ secrets.DISCOVERY_RENEWAL_KEY }}
+      - run: node tools/discovery.mjs verify
+      # Le commit hebdomadaire garde aussi le dépôt actif (GitHub coupe les workflows planifiés après 60 jours sans activité)
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add validity.json validity.json.minisig
+          git diff --cached --quiet || { git commit -m "chore: renew validity"; git push; }
+      - name: Purge jsDelivr
+        run: |
+          for f in discovery.json discovery.json.minisig validity.json validity.json.minisig; do
+            curl -fsS "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/$f" > /dev/null || echo "purge failed: $f"
+          done
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - uses: actions/deploy-pages@v4

@@ -1,0 +1,12 @@
+{
+  "discovery_serial": 2,
+  "discovery_sha256": "6e15482365bf24919330485960e42d107df08eabd44a5d622c8824fa85eb2892",
+  "valid_until": "2027-01-07T18:00:00Z",
+  "checked_at": "2026-11-23T18:28:09Z",
+  "domains": {
+    "zekyro.dev": {
+      "registered": "2026-02-12T19:46:27.100Z",
+      "expires": "2027-02-12T19:46:27.100Z"
+    }
+  }
+}

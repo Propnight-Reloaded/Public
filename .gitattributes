@@ -1,2 +1,4 @@
 discovery.json -text
 discovery.json.minisig -text
+validity.json -text
+validity.json.minisig -text

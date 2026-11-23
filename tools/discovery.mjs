@@ -9,6 +9,12 @@
 //   node tools/discovery.mjs sign --key <dossier>/primary.key.json [--file discovery.json]
 //   node tools/discovery.mjs verify [--file discovery.json] [--pub <clé base64>,...]   (défaut : keys.json)
 //   node tools/discovery.mjs check [--file discovery.json]
+//   node tools/discovery.mjs renew [--key <clé>] [--now <date ISO>]   (CI : clé dans DISCOVERY_RENEWAL_KEY)
+//
+// Validité : discovery.json porte `valid_until` (fixé à la signature hors ligne). La CI prolonge chaque semaine avec
+// validity.json (signé par la clé de renouvellement, lié au SHA-256 exact de discovery.json), seulement si le domaine
+// est toujours le nôtre (RDAP : même date d'enregistrement, pas expiré). Passé la validité, les clients coupent tous
+// les services en ligne : un domaine perdu puis racheté ne reçoit rien, même si plus personne ne s'occupe du projet.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +22,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SERVICES = ['shipgate', 'accounts', 'matches', 'website'];
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+const DAY = 24 * 3600 * 1000;
 const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 function prehash(data) {
@@ -90,6 +98,8 @@ export function validate(doc, previous) {
   const errors = [];
   if (!Number.isSafeInteger(doc?.serial) || doc.serial < 1) errors.push('serial : entier >= 1 attendu');
   if (typeof doc?.issued_at !== 'string' || Number.isNaN(Date.parse(doc.issued_at))) errors.push('issued_at : date ISO attendue');
+  if (typeof doc?.valid_until !== 'string' || !ISO_RE.test(doc.valid_until)) errors.push('valid_until : date ISO UTC attendue (ex. 2027-01-01T00:00:00Z)');
+  else if (Date.parse(doc.valid_until) <= Date.parse(doc.issued_at)) errors.push('valid_until doit être après issued_at');
   const services = doc?.services ?? {};
   for (const name of SERVICES) {
     const url = services[name];
@@ -111,6 +121,67 @@ export function validate(doc, previous) {
     errors.push(`serial ${doc?.serial} doit dépasser celui déjà publié (${previous.serial}) : les clients refusent un serial plus petit`);
   }
   return errors;
+}
+
+export function sha256(data) {
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+/** Dates RDAP d'un domaine : { registered, expires, status } */
+export function rdapDates(rdap) {
+  const event = (action) => (rdap?.events ?? []).find((e) => e.eventAction === action)?.eventDate;
+  return { registered: event('registration'), expires: event('expiration'), status: rdap?.status ?? [] };
+}
+
+const LOST_STATUS = ['pending delete', 'redemption period', 'inactive'];
+
+/**
+ * Contenu de validity.json, ou des erreurs si un domaine n'est plus sûr. `config.domains` : [{ name, registered }]
+ * attendus (renewal.json), `lookups` : { name: réponse RDAP }. La validité ne dépasse jamais l'expiration d'un domaine.
+ */
+export function renewal(discoveryBytes, doc, config, lookups, now) {
+  const errors = [];
+  const checked = {};
+  let until = now.getTime() + config.days * DAY;
+  for (const { name, registered } of config.domains) {
+    const dates = rdapDates(lookups[name]);
+    if (!dates.registered || Date.parse(dates.registered) !== Date.parse(registered)) {
+      errors.push(`${name} : date d'enregistrement ${dates.registered ?? 'absente'} ≠ ${registered} (domaine perdu puis réenregistré ?)`);
+      continue;
+    }
+    if (!dates.expires || Date.parse(dates.expires) <= now.getTime() + DAY) {
+      errors.push(`${name} : expire le ${dates.expires ?? '?'} (à renouveler chez le registrar)`);
+      continue;
+    }
+    const lost = dates.status.filter((s) => LOST_STATUS.includes(String(s).toLowerCase()));
+    if (lost.length) {
+      errors.push(`${name} : statut ${lost.join(', ')}`);
+      continue;
+    }
+    checked[name] = { registered: dates.registered, expires: dates.expires };
+    until = Math.min(until, Date.parse(dates.expires));
+  }
+  if (errors.length) return { errors };
+  return {
+    errors,
+    validity: {
+      discovery_serial: doc.serial,
+      discovery_sha256: sha256(discoveryBytes),
+      valid_until: new Date(Math.floor(until / 3600000) * 3600000).toISOString().replace('.000Z', 'Z'),
+      checked_at: now.toISOString().replace(/\.\d+Z$/, 'Z'),
+      domains: checked,
+    },
+  };
+}
+
+async function rdapLookup(name) {
+  const bootstrap = await (await fetch('https://data.iana.org/rdap/dns.json')).json();
+  const tld = name.split('.').pop();
+  const base = bootstrap.services.find(([tlds]) => tlds.includes(tld))?.[1]?.[0];
+  if (!base) throw new Error(`pas de serveur RDAP pour .${tld}`);
+  const res = await fetch(`${base.replace(/\/$/, '')}/domain/${name}`, { headers: { accept: 'application/rdap+json' } });
+  if (!res.ok) throw new Error(`RDAP ${name} : HTTP ${res.status}`);
+  return res.json();
 }
 
 function parseArgs(argv) {
@@ -135,11 +206,38 @@ function publishedVersion(file) {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function defaultKeys() {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, 'keys.json'), 'utf8')).keys.map((k) => k.public_key);
+function readKeys() {
+  return JSON.parse(fs.readFileSync(path.join(ROOT, 'keys.json'), 'utf8'));
 }
 
-function main([command, ...rest]) {
+function defaultKeys() {
+  return readKeys().keys.map((k) => k.public_key);
+}
+
+/** Clés acceptées pour validity.json : renouvellement (CI) + clés hors ligne */
+function validityKeys() {
+  const keys = readKeys();
+  return [...(keys.renewal_keys ?? []).map((k) => k.public_key), ...keys.keys.map((k) => k.public_key)];
+}
+
+function loadKey(opts) {
+  if (opts.key) return JSON.parse(fs.readFileSync(opts.key, 'utf8'));
+  if (process.env.DISCOVERY_RENEWAL_KEY) return JSON.parse(process.env.DISCOVERY_RENEWAL_KEY);
+  return fail('--key ou DISCOVERY_RENEWAL_KEY requis');
+}
+
+/** Vérifie validity.json par rapport à discovery.json : null si absent, sinon { ok, message } */
+function checkValidity(file) {
+  const vfile = path.join(path.dirname(file), 'validity.json');
+  if (!fs.existsSync(vfile)) return null;
+  const data = fs.readFileSync(vfile);
+  if (!verify(data, fs.readFileSync(`${vfile}.minisig`, 'utf8'), validityKeys())) return { ok: false, message: 'validity.json : signature invalide' };
+  const v = JSON.parse(data.toString('utf8'));
+  if (v.discovery_sha256 !== sha256(fs.readFileSync(file))) return { ok: true, message: `validity.json concerne un autre discovery.json (serial ${v.discovery_serial}) : la CI le renouvellera` };
+  return { ok: true, message: `validity.json valide jusqu'au ${v.valid_until}` };
+}
+
+async function main([command, ...rest]) {
   const opts = parseArgs(rest);
   const file = path.resolve(opts.file || path.join(ROOT, 'discovery.json'));
   if (command === 'keygen') {
@@ -170,10 +268,32 @@ function main([command, ...rest]) {
     const pubs = opts.pub ? opts.pub.split(',') : defaultKeys();
     const ok = verify(fs.readFileSync(file), fs.readFileSync(`${file}.minisig`, 'utf8'), pubs);
     if (!ok) fail('signature invalide');
-    console.log('✅ signature valide');
+    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    console.log(`✅ signature valide (serial ${doc.serial}, valide jusqu'au ${doc.valid_until})`);
+    const validity = checkValidity(file);
+    if (validity && !validity.ok) fail(validity.message);
+    if (validity) console.log(`✅ ${validity.message}`);
+  } else if (command === 'renew') {
+    const data = fs.readFileSync(file);
+    const doc = JSON.parse(data.toString('utf8'));
+    if (!verify(data, fs.readFileSync(`${file}.minisig`, 'utf8'), defaultKeys())) fail('discovery.json mal signé : rien à renouveler');
+    const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'renewal.json'), 'utf8'));
+    const now = opts.now ? new Date(opts.now) : new Date();
+    const lookups = {};
+    for (const { name } of config.domains) lookups[name] = await rdapLookup(name);
+    const { errors, validity } = renewal(data, doc, config, lookups, now);
+    if (errors.length) fail(`renouvellement refusé, les clients passeront hors ligne à l'échéance :\n   ${errors.join('\n   ')}`);
+    const vdata = Buffer.from(`${JSON.stringify(validity, null, 2)}\n`);
+    const key = loadKey(opts);
+    const sigText = sign(vdata, key, `timestamp:${Math.floor(now.getTime() / 1000)}\tfile:validity.json\tserial:${doc.serial}`);
+    if (!verify(vdata, sigText, validityKeys())) fail('cette clé ne fait pas partie de keys.json');
+    const vfile = path.join(path.dirname(file), 'validity.json');
+    fs.writeFileSync(vfile, vdata);
+    fs.writeFileSync(`${vfile}.minisig`, sigText);
+    console.log(`✅ validity.json renouvelé jusqu'au ${validity.valid_until} (serial ${doc.serial})`);
   } else {
-    fail('commande : keygen | sign | verify | check');
+    fail('commande : keygen | sign | verify | check | renew');
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2));
