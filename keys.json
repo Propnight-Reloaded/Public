@@ -1,0 +1,7 @@
+{
+  "comment": "Clés publiques acceptées par les clients (embarquées dans pnr_launcher, src-tauri/src/utils/discovery.rs). Les clés privées sont hors ligne.",
+  "keys": [
+    { "name": "primary", "public_key": "RWTkXl9Nb9Zhu2ks6jAlaxn3nDtOpWH/4Om9SBWG8ETiL9vdwLWJTnEG" },
+    { "name": "backup", "public_key": "RWRkApQODdNjrNSN6ls9gf0sygomHslSus3Nm4V0dBpC/IBJ/LSrsmeR" }
+  ]
+}

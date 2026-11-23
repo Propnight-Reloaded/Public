@@ -1,0 +1,11 @@
+{
+  "serial": 1,
+  "issued_at": "2026-11-23T00:00:00Z",
+  "services": {
+    "shipgate": "https://shipgate.zekyro.dev",
+    "accounts": "https://accounts.zekyro.dev",
+    "matches": "https://matches.zekyro.dev",
+    "website": "https://propnight.zekyro.dev"
+  },
+  "revoked_hosts": []
+}

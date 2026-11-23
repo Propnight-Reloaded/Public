@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test
+      - run: node tools/discovery.mjs verify
+      # Sur une PR, le serial doit dépasser celui de main
+      - if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          node -e "
+            const prev = JSON.parse(require('child_process').execSync('git show FETCH_HEAD:discovery.json'));
+            const next = JSON.parse(require('fs').readFileSync('discovery.json'));
+            if (JSON.stringify(prev) !== JSON.stringify(next) && next.serial <= prev.serial) { console.error('serial must go up'); process.exit(1); }"
