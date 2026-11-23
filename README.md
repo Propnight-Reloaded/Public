@@ -21,7 +21,7 @@ Sinon il garde le dernier fichier valide en cache, puis ses défauts compilés. 
 - `validity.json` contient le SHA-256 exact de `discovery.json` : la clé de renouvellement ne peut que prolonger les adresses signées hors ligne, jamais en changer.
 - Validité dépassée (domaine non renouvelé, CI arrêtée) : le launcher coupe tout ce qui est en ligne (ShipGate, comptes, matchs, liens du site). Le jeu reste jouable avec les fichiers déjà installés.
 - Un échec du workflow (email de GitHub) veut dire : renouveler le domaine, ou mettre à jour `renewal.json` / `discovery.json`.
-- Sans `DISCOVERY_RENEWAL_KEY` (ou à la main) : `node tools/discovery.mjs renew --key "$env:USERPROFILE\.pnr-keys\discoveryenewal.key.json"`.
+- Sans `DISCOVERY_RENEWAL_KEY` (ou à la main) : `node tools/discovery.mjs renew --key "$env:USERPROFILE\.pnr-keys\discovery\renewal.key.json"`.
 
 ## Publier un changement
 
