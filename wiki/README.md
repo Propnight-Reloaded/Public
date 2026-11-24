@@ -1,15 +1,15 @@
 # 📖 Documentation Officielle — Propnight Reloaded
 
-Bienvenue sur le dépôt officiel de la documentation et du Wiki pour le projet **Propnight Reloaded**.
+Documentation et Wiki du projet **Propnight Reloaded**, dans le dossier `wiki/` du dépôt public `Public`.
 
-Ce dépôt est structuré selon les standards de l'industrie pour accueillir à la fois les **joueurs**, les **créateurs de contenu (moddeurs)** et les **développeurs/contributeurs**.
+Le wiki est structuré selon les standards de l'industrie pour accueillir à la fois les **joueurs**, les **créateurs de contenu (moddeurs)** et les **développeurs/contributeurs**.
 
 ---
 
 ## 🗂️ Structure du Wiki
 
 ```
-Wiki/
+wiki/
 ├── 01-guide-joueur/
 │   ├── 01-bienvenue.md             # Présentation du projet et philosophie
 │   ├── 02-installation.md          # Téléchargement et installation du launcher
@@ -38,6 +38,6 @@ Wiki/
 ## 🤝 Contribuer à la Documentation
 
 Les contributions de la communauté sont les bienvenues !
-1. Forkez le dépôt : `https://github.com/Propnight-Reloaded/Wiki`.
-2. Modifiez ou ajoutez vos fichiers `.md` avec leur en-tête YAML.
+1. Forkez le dépôt : `https://github.com/Propnight-Reloaded/Public`.
+2. Modifiez ou ajoutez vos fichiers `.md` dans `wiki/`, avec leur en-tête YAML.
 3. Ouvrez une Pull Request pour publication automatique sur le site vitrine.

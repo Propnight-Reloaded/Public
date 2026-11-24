@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
   "name": "Propnight Reloaded Official Documentation",
-  "baseUrl": "https://raw.githubusercontent.com/Propnight-Reloaded/Wiki/main",
+  "baseUrl": "https://raw.githubusercontent.com/Propnight-Reloaded/Public/main/wiki",
   "categories": [
     {
       "key": "player",
