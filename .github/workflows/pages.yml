@@ -13,13 +13,22 @@ permissions:
   pages: write
   id-token: write
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: github-pages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
-      - uses: actions/deploy-pages@v4
+  # Déploiement dans un job à part : dans le même job, deploy-pages ne trouve parfois pas l'artefact qui vient
+  # d'être envoyé (actions/deploy-pages#451)
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
