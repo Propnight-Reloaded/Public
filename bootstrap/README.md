@@ -23,6 +23,25 @@ Sinon il garde le dernier fichier valide en cache, puis ses défauts compilés. 
 - Un échec du workflow (email de GitHub) veut dire : renouveler le domaine, ou mettre à jour `renewal.json` / `bootstrap.json`.
 - Sans `DISCOVERY_RENEWAL_KEY` (ou à la main) : `node tools/bootstrap.mjs renew --key "$env:USERPROFILE\.pnr-keys\discovery\renewal.key.json"`.
 
+## Arrêter le projet
+
+But : les joueurs qui ont déjà le jeu installé continuent à jouer. Les nouveaux joueurs ne peuvent plus installer les fichiers du mod, et tout ce qui est en ligne est perdu (comptes, codes de skins, signalements, mises à jour).
+
+**Rien n'est obligatoire.** On peut couper le VPS du jour au lendemain :
+
+- Le launcher reprend les fichiers du jeu depuis son cache. Le relay garde la dernière liste de bans et ne fait plus attendre les parties. La progression des joueurs (pièces, skins, quêtes) est dans leur sauvegarde locale, et le launcher en garde des copies (`save-backups`).
+- Au plus tard 45 jours après le dernier renouvellement réussi (domaine plus renouvelé, ou workflow arrêté), la validité expire. Le launcher ne contacte alors plus aucun service. Les parties passent par Steam et continuent.
+- Les testeurs bêta repassent sur la dernière stable, qui est déjà en cache.
+
+Pour tout couper tout de suite au lieu d'attendre l'expiration : publier un `bootstrap.json` dont tous les services valent `""` (serial + 1, signé avec la clé principale, voir « Publier un changement »).
+
+À ne pas faire :
+
+- Ne pas supprimer l'organisation GitHub, ni ce dépôt, avant que la validité ait expiré. Sinon les launchers retombent sur leur dernier fichier en cache, puis sur leurs adresses compilées, jusqu'à `PNR_DOMAIN_VALID_UNTIL`.
+- Ne pas laisser le domaine être réenregistré par quelqu'un d'autre tant que des launchers le considèrent comme valide. La validité ne dépasse jamais la date d'expiration du domaine.
+
+Prérequis : avant l'arrêt, les joueurs doivent avoir un launcher qui gère la découverte (PR « domain independence ») et les correctifs hors ligne (launcher `fix/offline-play`, relay `fix/offline-resilience`). Les launchers plus anciens contactent `*.zekyro.dev` pour toujours.
+
 ## Publier un changement
 
 ```powershell
