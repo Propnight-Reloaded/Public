@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// Fichier de découverte signé de Propnight Reloaded — zéro dépendance (Node >= 20).
+// Fichier de démarrage signé de Propnight Reloaded (bootstrap.json, ex-discovery.json) — zéro dépendance (Node >= 20).
 //
-// Le launcher lit discovery.json + discovery.json.minisig depuis plusieurs miroirs hors du domaine du projet et
+// Le launcher lit bootstrap.json + bootstrap.json.minisig depuis plusieurs miroirs hors du domaine du projet et
 // n'accepte le fichier que s'il est signé par une des clés publiques qu'il embarque. Format de signature : minisign
-// (ed25519, message pré-haché en BLAKE2b-512), vérifiable aussi avec `minisign -Vm discovery.json -P <clé>`.
+// (ed25519, message pré-haché en BLAKE2b-512), vérifiable aussi avec `minisign -Vm bootstrap.json -P <clé>`.
 //
-//   node tools/discovery.mjs keygen --out <dossier hors dépôt> --name primary|backup
-//   node tools/discovery.mjs sign --key <dossier>/primary.key.json [--file discovery.json]
-//   node tools/discovery.mjs verify [--file discovery.json] [--pub <clé base64>,...]   (défaut : keys.json)
-//   node tools/discovery.mjs check [--file discovery.json]
-//   node tools/discovery.mjs renew [--key <clé>] [--now <date ISO>]   (CI : clé dans DISCOVERY_RENEWAL_KEY)
+//   node tools/bootstrap.mjs keygen --out <dossier hors dépôt> --name primary|backup
+//   node tools/bootstrap.mjs sign --key <dossier>/primary.key.json [--file bootstrap.json]
+//   node tools/bootstrap.mjs verify [--file bootstrap.json] [--pub <clé base64>,...]   (défaut : keys.json)
+//   node tools/bootstrap.mjs check [--file bootstrap.json]
+//   node tools/bootstrap.mjs renew [--key <clé>] [--now <date ISO>]   (CI : clé dans DISCOVERY_RENEWAL_KEY)
 //
-// Validité : discovery.json porte `valid_until` (fixé à la signature hors ligne). La CI prolonge chaque semaine avec
-// validity.json (signé par la clé de renouvellement, lié au SHA-256 exact de discovery.json), seulement si le domaine
+// Validité : bootstrap.json porte `valid_until` (fixé à la signature hors ligne). La CI prolonge chaque semaine avec
+// validity.json (signé par la clé de renouvellement, lié au SHA-256 exact de bootstrap.json), seulement si le domaine
 // est toujours le nôtre (RDAP : même date d'enregistrement, pas expiré). Passé la validité, les clients coupent tous
 // les services en ligne : un domaine perdu puis racheté ne reçoit rien, même si plus personne ne s'occupe du projet.
 import crypto from 'node:crypto';
@@ -49,7 +49,7 @@ export function sign(data, key, trustedComment) {
   const signature = crypto.sign(null, prehash(data), privateKey);
   const global = crypto.sign(null, Buffer.concat([signature, Buffer.from(trustedComment, 'utf8')]), privateKey);
   return [
-    'untrusted comment: Propnight Reloaded discovery signature',
+    'untrusted comment: Propnight Reloaded bootstrap signature',
     Buffer.concat([Buffer.from('ED'), keyId, signature]).toString('base64'),
     `trusted comment: ${trustedComment}`,
     global.toString('base64'),
@@ -226,20 +226,20 @@ function loadKey(opts) {
   return fail('--key ou DISCOVERY_RENEWAL_KEY requis');
 }
 
-/** Vérifie validity.json par rapport à discovery.json : null si absent, sinon { ok, message } */
+/** Vérifie validity.json par rapport à bootstrap.json : null si absent, sinon { ok, message } */
 function checkValidity(file) {
   const vfile = path.join(path.dirname(file), 'validity.json');
   if (!fs.existsSync(vfile)) return null;
   const data = fs.readFileSync(vfile);
   if (!verify(data, fs.readFileSync(`${vfile}.minisig`, 'utf8'), validityKeys())) return { ok: false, message: 'validity.json : signature invalide' };
   const v = JSON.parse(data.toString('utf8'));
-  if (v.discovery_sha256 !== sha256(fs.readFileSync(file))) return { ok: true, message: `validity.json concerne un autre discovery.json (serial ${v.discovery_serial}) : la CI le renouvellera` };
+  if (v.discovery_sha256 !== sha256(fs.readFileSync(file))) return { ok: true, message: `validity.json concerne un autre bootstrap.json (serial ${v.discovery_serial}) : la CI le renouvellera` };
   return { ok: true, message: `validity.json valide jusqu'au ${v.valid_until}` };
 }
 
 async function main([command, ...rest]) {
   const opts = parseArgs(rest);
-  const file = path.resolve(opts.file || path.join(ROOT, 'discovery.json'));
+  const file = path.resolve(opts.file || path.join(ROOT, 'bootstrap.json'));
   if (command === 'keygen') {
     if (!opts.out || !opts.name) fail('--out et --name sont requis');
     const out = path.resolve(opts.out);
@@ -256,11 +256,11 @@ async function main([command, ...rest]) {
     const data = fs.readFileSync(file);
     const errors = validate(JSON.parse(data.toString('utf8')), publishedVersion(file));
     if (errors.length) fail(errors.join('\n   '));
-    if (command === 'check') return console.log('✅ discovery.json valide');
+    if (command === 'check') return console.log('✅ bootstrap.json valide');
     if (!opts.key) fail('--key est requis');
     const key = JSON.parse(fs.readFileSync(opts.key, 'utf8'));
     const doc = JSON.parse(data.toString('utf8'));
-    const sigText = sign(data, key, `timestamp:${Math.floor(Date.now() / 1000)}\tfile:discovery.json\tserial:${doc.serial}`);
+    const sigText = sign(data, key, `timestamp:${Math.floor(Date.now() / 1000)}\tfile:bootstrap.json\tserial:${doc.serial}`);
     if (!verify(data, sigText, defaultKeys())) fail('cette clé ne fait pas partie de keys.json : les clients refuseraient la signature');
     fs.writeFileSync(`${file}.minisig`, sigText);
     console.log(`✅ ${path.basename(file)}.minisig écrit (serial ${doc.serial})`);
@@ -276,7 +276,7 @@ async function main([command, ...rest]) {
   } else if (command === 'renew') {
     const data = fs.readFileSync(file);
     const doc = JSON.parse(data.toString('utf8'));
-    if (!verify(data, fs.readFileSync(`${file}.minisig`, 'utf8'), defaultKeys())) fail('discovery.json mal signé : rien à renouveler');
+    if (!verify(data, fs.readFileSync(`${file}.minisig`, 'utf8'), defaultKeys())) fail('bootstrap.json mal signé : rien à renouveler');
     const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'renewal.json'), 'utf8'));
     const now = opts.now ? new Date(opts.now) : new Date();
     const lookups = {};

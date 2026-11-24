@@ -14,12 +14,16 @@ jobs:
         with:
           node-version: '22'
       - run: node --test
-      - run: node tools/discovery.mjs verify
+        working-directory: bootstrap
+      - run: node tools/bootstrap.mjs verify
+        working-directory: bootstrap
       # Sur une PR, le serial doit dépasser celui de main
       - if: github.event_name == 'pull_request'
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
           node -e "
-            const prev = JSON.parse(require('child_process').execSync('git show FETCH_HEAD:discovery.json'));
-            const next = JSON.parse(require('fs').readFileSync('discovery.json'));
-            if (JSON.stringify(prev) !== JSON.stringify(next) && next.serial <= prev.serial) { console.error('serial must go up'); process.exit(1); }"
+            const { execSync } = require('child_process');
+            const show = (p) => { try { return JSON.parse(execSync('git show FETCH_HEAD:' + p, { stdio: ['ignore', 'pipe', 'ignore'] })); } catch { return null; } };
+            const prev = show('bootstrap/bootstrap.json') ?? show('discovery.json');
+            const next = JSON.parse(require('fs').readFileSync('bootstrap/bootstrap.json'));
+            if (prev && JSON.stringify(prev) !== JSON.stringify(next) && next.serial <= prev.serial) { console.error('serial must go up'); process.exit(1); }"

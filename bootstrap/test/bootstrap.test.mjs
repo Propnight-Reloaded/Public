@@ -1,15 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { keygen, sign, verify, validate, renewal, sha256 } from '../tools/discovery.mjs';
+import { keygen, sign, verify, validate, renewal, sha256 } from '../tools/bootstrap.mjs';
 
-const doc = () => JSON.parse(fs.readFileSync(new URL('../discovery.json', import.meta.url), 'utf8'));
+const doc = () => JSON.parse(fs.readFileSync(new URL('../bootstrap.json', import.meta.url), 'utf8'));
 
 test('a signature verifies with its key and fails with another', () => {
   const key = keygen();
   const other = keygen();
   const data = Buffer.from('{"serial":1}');
-  const sig = sign(data, key, 'timestamp:1\tfile:discovery.json');
+  const sig = sign(data, key, 'timestamp:1\tfile:bootstrap.json');
   assert.equal(verify(data, sig, [key.publicKey]), true);
   assert.equal(verify(data, sig, [other.publicKey, key.publicKey]), true);
   assert.equal(verify(data, sig, [other.publicKey]), false);
@@ -29,11 +29,11 @@ test('any change to the file, the trusted comment or the signature is refused', 
   assert.equal(verify(data, '', [key.publicKey]), false);
 });
 
-test('the published discovery.json is valid and signed by a key of keys.json', () => {
+test('the published bootstrap.json is valid and signed by a key of keys.json', () => {
   assert.deepEqual(validate(doc()), []);
   const keys = JSON.parse(fs.readFileSync(new URL('../keys.json', import.meta.url), 'utf8')).keys.map((k) => k.public_key);
-  const sig = fs.readFileSync(new URL('../discovery.json.minisig', import.meta.url), 'utf8');
-  assert.equal(verify(fs.readFileSync(new URL('../discovery.json', import.meta.url)), sig, keys), true);
+  const sig = fs.readFileSync(new URL('../bootstrap.json.minisig', import.meta.url), 'utf8');
+  assert.equal(verify(fs.readFileSync(new URL('../bootstrap.json', import.meta.url)), sig, keys), true);
 });
 
 test('validate refuses http URLs, unknown services, revoked targets and a serial that does not go up', () => {
@@ -59,7 +59,7 @@ const rdap = (registered, expires, status = ['client transfer prohibited']) => (
   events: [{ eventAction: 'registration', eventDate: registered }, { eventAction: 'expiration', eventDate: expires }],
 });
 
-test('renewal extends 45 days, never past the domain expiry, bound to the exact discovery.json', () => {
+test('renewal extends 45 days, never past the domain expiry, bound to the exact bootstrap.json', () => {
   const bytes = Buffer.from('{"serial":2}');
   const now = new Date('2026-11-23T18:30:00Z');
   const ok = renewal(bytes, { serial: 2 }, config, { 'zekyro.dev': rdap('2026-02-12T19:46:27.100Z', '2027-02-12T19:46:27.100Z') }, now);
@@ -82,7 +82,7 @@ test('renewal is refused when the domain expired, was re-registered by someone e
   assert.match(renewal(bytes, { serial: 2 }, config, {}, now).errors.join(), /absente/);
 });
 
-// Après un changement de discovery.json, validity.json concerne l'ancien fichier jusqu'au passage de la CI (renew.yml)
+// Après un changement de bootstrap.json, validity.json concerne l'ancien fichier jusqu'au passage de la CI (renew.yml)
 test('the published validity.json is signed by a renewal key', () => {
   const keys = JSON.parse(fs.readFileSync(new URL('../keys.json', import.meta.url), 'utf8'));
   const data = fs.readFileSync(new URL('../validity.json', import.meta.url));

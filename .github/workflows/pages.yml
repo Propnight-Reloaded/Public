@@ -1,0 +1,25 @@
+name: Pages
+# Publie tout le dépôt sur GitHub Pages (miroir de bootstrap/, wiki/ et patchnotes/) à chaque push sur main.
+# renew.yml publie aussi après son commit hebdomadaire : un commit fait par GITHUB_TOKEN ne déclenche pas ce workflow.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: pages
+  cancel-in-progress: false
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - uses: actions/deploy-pages@v4
