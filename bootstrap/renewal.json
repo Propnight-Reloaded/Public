@@ -1,0 +1,7 @@
+{
+  "comment": "Domaines dont dépendent les services de bootstrap.json. La CI ne prolonge validity.json que si chaque domaine a toujours cette date d'enregistrement (RDAP) et n'est pas expiré. Changer de domaine : ajouter le nouveau ici (date d'enregistrement RDAP), retirer l'ancien.",
+  "days": 45,
+  "domains": [
+    { "name": "zekyro.dev", "registered": "2026-02-12T19:46:27.100Z" }
+  ]
+}

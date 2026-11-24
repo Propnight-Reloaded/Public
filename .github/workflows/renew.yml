@@ -1,5 +1,5 @@
 name: Renew validity
-# Prolonge validity.json chaque semaine tant que les domaines de renewal.json sont toujours les nôtres (RDAP).
+# Prolonge bootstrap/validity.json chaque semaine tant que les domaines de bootstrap/renewal.json sont toujours les nôtres (RDAP).
 # En cas d'échec (domaine expiré, réenregistré, RDAP injoignable), le workflow échoue et GitHub prévient par email :
 # les clients passent hors ligne à l'échéance de la dernière validité, sans jamais contacter un domaine perdu.
 on:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [discovery.json, discovery.json.minisig, renewal.json, keys.json]
+    paths: [bootstrap/bootstrap.json, bootstrap/bootstrap.json.minisig, bootstrap/renewal.json, bootstrap/keys.json]
 concurrency: renew
 permissions:
   contents: write
@@ -23,20 +23,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tools/discovery.mjs renew
+      - run: node tools/bootstrap.mjs renew
+        working-directory: bootstrap
         env:
           DISCOVERY_RENEWAL_KEY: ${{ secrets.DISCOVERY_RENEWAL_KEY }}
-      - run: node tools/discovery.mjs verify
+      - run: node tools/bootstrap.mjs verify
+        working-directory: bootstrap
       # Le commit hebdomadaire garde aussi le dépôt actif (GitHub coupe les workflows planifiés après 60 jours sans activité)
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add validity.json validity.json.minisig
+          git add bootstrap/validity.json bootstrap/validity.json.minisig
           git diff --cached --quiet || { git commit -m "chore: renew validity"; git push; }
       - name: Purge jsDelivr
         run: |
-          for f in discovery.json discovery.json.minisig validity.json validity.json.minisig; do
+          for f in bootstrap/bootstrap.json bootstrap/bootstrap.json.minisig bootstrap/validity.json bootstrap/validity.json.minisig; do
             curl -fsS "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/$f" > /dev/null || echo "purge failed: $f"
           done
       - uses: actions/configure-pages@v5

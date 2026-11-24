@@ -1,5 +1,5 @@
 {
-  "comment": "Clés publiques acceptées par les clients (embarquées dans pnr_launcher, src-tauri/src/utils/discovery.rs). keys : signent discovery.json, privées hors ligne. renewal_keys : signent seulement validity.json (prolongation), privée dans le secret CI DISCOVERY_RENEWAL_KEY.",
+  "comment": "Clés publiques acceptées par les clients (embarquées dans pnr_launcher, src-tauri/src/utils/discovery.rs). keys : signent bootstrap.json, privées hors ligne. renewal_keys : signent seulement validity.json (prolongation), privée dans le secret CI DISCOVERY_RENEWAL_KEY.",
   "keys": [
     { "name": "primary", "public_key": "RWTkXl9Nb9Zhu2ks6jAlaxn3nDtOpWH/4Om9SBWG8ETiL9vdwLWJTnEG" },
     { "name": "backup", "public_key": "RWRkApQODdNjrNSN6ls9gf0sygomHslSus3Nm4V0dBpC/IBJ/LSrsmeR" }
